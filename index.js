@@ -32,7 +32,7 @@ const defaultOptions = {
   minifyCss: {},
   minifyHtml: {
     collapseBooleanAttributes: true,
-    collapseWhitespace: true,
+    collapseWhitespace: false,
     decodeEntities: true,
     keepClosingSlash: true,
     sortAttributes: true,
@@ -45,8 +45,7 @@ const defaultOptions = {
   },
   sourceMaps: true,
   //# workarounds
-  // using CRA1 for compatibility with previous version will be changed to false in v2
-  fixWebpackChunksIssue: "CRA1",
+  fixWebpackChunksIssue: false,
   removeBlobs: true,
   fixInsertRule: true,
   skipThirdPartyRequests: false,
@@ -285,8 +284,8 @@ const inlineCss = async opt => {
   const allCssSize = Buffer.byteLength(allCss, "utf8");
 
   let cssStrategy, cssSize;
-    cssStrategy = "inline";
-    cssSize = allCssSize;
+  cssStrategy = "inline";
+  cssSize = allCssSize;
 
   if (cssSize > twentyKb)
     console.log(
