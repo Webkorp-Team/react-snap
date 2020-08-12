@@ -8,7 +8,6 @@ const nativeFs = require("fs");
 const mkdirp = require("mkdirp");
 const minify = require("html-minifier").minify;
 const url = require("url");
-const minimalcss = require("minimalcss");
 const CleanCSS = require("clean-css");
 const twentyKb = 20 * 1024;
 
@@ -58,7 +57,7 @@ const defaultOptions = {
   ignoreForPreload: ["service-worker.js"],
   //# unstable configurations
   preconnectThirdParty: true,
-  // Experimental. This config stands for two strategies inline and critical.
+  // Experimental.
   // TODO: inline strategy can contain errors, like, confuse relative urls
   inlineCss: false,
   //# feature creeps to generate screenshots
@@ -267,16 +266,6 @@ const removeBlobs = async opt => {
 const inlineCss = async opt => {
   const { page, pageUrl, options, basePath, browser } = opt;
 
-  const minimalcssResult = await minimalcss.minimize({
-    urls: [pageUrl],
-    skippable: request =>
-      options.skipThirdPartyRequests && !request.url().startsWith(basePath),
-    browser: browser,
-    userAgent: options.userAgent
-  });
-  const criticalCss = minimalcssResult.finalCss;
-  const criticalCssSize = Buffer.byteLength(criticalCss, "utf8");
-
   const result = await page.evaluate(async () => {
     const stylesheets = Array.from(
       document.querySelectorAll("link[rel=stylesheet]")
@@ -296,13 +285,8 @@ const inlineCss = async opt => {
   const allCssSize = Buffer.byteLength(allCss, "utf8");
 
   let cssStrategy, cssSize;
-  if (criticalCssSize * 2 >= allCssSize) {
     cssStrategy = "inline";
     cssSize = allCssSize;
-  } else {
-    cssStrategy = "critical";
-    cssSize = criticalCssSize;
-  }
 
   if (cssSize > twentyKb)
     console.log(
@@ -310,38 +294,6 @@ const inlineCss = async opt => {
         1024}kb, ${cssStrategy})`
     );
 
-  if (cssStrategy === "critical") {
-    await page.evaluate(
-      (criticalCss, preloadPolyfill) => {
-        const head = document.head || document.getElementsByTagName("head")[0],
-          style = document.createElement("style");
-        style.type = "text/css";
-        style.appendChild(document.createTextNode(criticalCss));
-        head.appendChild(style);
-        const noscriptTag = document.createElement("noscript");
-        document.head.appendChild(noscriptTag);
-
-        const stylesheets = Array.from(
-          document.querySelectorAll("link[rel=stylesheet]")
-        );
-        stylesheets.forEach(link => {
-          noscriptTag.appendChild(link.cloneNode(false));
-          link.setAttribute("rel", "preload");
-          link.setAttribute("as", "style");
-          link.setAttribute("react-snap-onload", "this.rel='stylesheet'");
-          document.head.appendChild(link);
-        });
-
-        const scriptTag = document.createElement("script");
-        scriptTag.type = "text/javascript";
-        scriptTag.text = preloadPolyfill;
-        // scriptTag.id = "preloadPolyfill";
-        document.body.appendChild(scriptTag);
-      },
-      criticalCss,
-      preloadPolyfill
-    );
-  } else {
     await page.evaluate(allCss => {
       if (!allCss) return;
 
@@ -361,9 +313,9 @@ const inlineCss = async opt => {
         link.parentNode && link.parentNode.removeChild(link);
       });
     }, allCss);
-  }
+
   return {
-    cssFiles: cssStrategy === "inline" ? result.cssFiles : []
+    cssFiles: result.cssFiles,
   };
 };
 
